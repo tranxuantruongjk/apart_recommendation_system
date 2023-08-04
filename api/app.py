@@ -18,17 +18,17 @@ mongo = PyMongo(app)
 
 @app.route('/posts/<id>',  methods=['GET'])
 def recommend(id):
-  def hashType(id, types): 
-    for i,x in enumerate(types):
-      if id == x:
-        return i
+  # def hashType(id, types): 
+  #   for i,x in enumerate(types):
+  #     if id == x:
+  #       return i
       
-  def fillGender(gender):
-    if gender == 'any':
-      return 0
-    elif gender == 'male':
-      return 1
-    else: return 2
+  # def fillGender(gender):
+  #   if gender == 'any':
+  #     return 0
+  #   elif gender == 'male':
+  #     return 1
+  #   else: return 2
       
   num = 6
   list = []
@@ -38,24 +38,33 @@ def recommend(id):
     types.append(str(t["_id"]))
 
   post = mongo.db.posts.find_one({ '_id': ObjectId(id)})
-  postEl = [str(post["_id"]), hashType(str(post["rentType"]), types), post["price"], post["area"], 
-            post["fullAddressObject"]["district"]["code"], post["fullAddressObject"]["ward"]["code"], fillGender(post["gender"])]
+  postEl = [str(post["_id"]), post["price"], post["area"], 
+            int(post["fullAddressObject"]["district"]["code"]), int(post["fullAddressObject"]["ward"]["code"])]
   
   postsList = []
   posts = []
-  results = mongo.db.posts.find({ 'fullAddressObject.ward.code': post["fullAddressObject"]["ward"]["code"], 
-                                  'rentType': post["rentType"]})
+  results = mongo.db.posts.find({ 'fullAddressObject.ward.code': int(post["fullAddressObject"]["ward"]["code"]), 
+                                  'rentType': post["rentType"],
+                                  'gender': {'$in': ["any", "male", "female"]} if post["gender"] == "any" 
+                                              else {'$in': ["any", "male"]} if post["gender"] == "male" 
+                                              else {'$in': ["any", "female"]}})
   if results.explain().get("executionStats", {}).get("nReturned") < num:
-    results = mongo.db.posts.find({ 'fullAddressObject.district.code': post["fullAddressObject"]["district"]["code"],
-                                    'rentType': post["rentType"]})
+    results = mongo.db.posts.find({ 'fullAddressObject.district.code': int(post["fullAddressObject"]["district"]["code"]),
+                                    'rentType': post["rentType"],
+                                    'gender': {'$in': ["any", "male", "female"]} if post["gender"] == "any" 
+                                              else {'$in': ["any", "male"]} if post["gender"] == "male" 
+                                              else {'$in': ["any", "female"]}})
     if results.explain().get("executionStats", {}).get("nReturned") < num:
-      results = mongo.db.posts.find({ 'rentType': post["rentType"]})
+      results = mongo.db.posts.find({ 'rentType': post["rentType"],
+                                      'gender': {'$in': ["any", "male", "female"]} if post["gender"] == "any" 
+                                              else {'$in': ["any", "male"]} if post["gender"] == "male" 
+                                              else {'$in': ["any", "female"]}})
   
   count = results.explain().get("executionStats", {}).get("nReturned")
   for p in results:
     posts.append(p)
-    data = [str(p["_id"]), hashType(str(p["rentType"]), types), p["price"], p["area"], 
-            p["fullAddressObject"]["district"]["code"], p["fullAddressObject"]["ward"]["code"], fillGender(p["gender"])]
+    data = [str(p["_id"]), p["price"], p["area"], 
+            int(p["fullAddressObject"]["district"]["code"]), int(p["fullAddressObject"]["ward"]["code"])]
     postsList.append(data)
 
   postIndex = 0
@@ -64,7 +73,7 @@ def recommend(id):
       postIndex = postsList.index(p)
     
   postsArray = np.array(postsList)
-  postSlice = postsArray[:, 1:7]
+  postSlice = postsArray[:, 1:]
   dataSet = postSlice.astype(float)
   # dataSet = postSlice.astype(int)
   scaler = MinMaxScaler()
